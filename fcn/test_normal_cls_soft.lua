@@ -43,13 +43,14 @@ end
 
 
 model = torch.load(opt.network)
-model_FCN = model.FCN:cuda()
+-- model_FCN = model.FCN:cuda()
+
+model_FCN = model:cuda()
 
 collectgarbage()
 
 
 opt.condDim = {3, opt.scale, opt.scale}
-
 opt.div_num = 127.5
 opt.datasize = 654
 
@@ -111,7 +112,9 @@ function getSamples( N, beg)
 
   -- TODO: forward prop given imgs as inputs, output should be samples
   -- dimension of samples is batchsize * classnum(40) * height * width
-
+    local samples
+    samples = model_FCN:forward(inputs)
+    
   -- norms has the dimension of batchsize * 3 * height * width 
   -- following code convert the probabilities to normals using the codebook
   local norms = torch.Tensor((#samples)[1], 3, (#samples)[3], (#samples)[4])

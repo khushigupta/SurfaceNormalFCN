@@ -14,13 +14,36 @@ local dataTimer = torch.Timer()
 
 
 -- training function
-function fcn.train(inputs_all)
+function fcn.train(inputsArg, targetsArg)
   cutorch.synchronize()
   epoch = epoch or 1
   local dataLoadingTime = dataTimer:time().real; sampleTimer:reset(); -- timers
   local dataBatchSize = opt.batchSize 
 
-  -- TODO: implemnet the training function 
+  -- TODO: implement the training function -- TODO: setup training functions, use fcn_train_cls.lua
+  inputs:copy(inputsArg)
+  targets:copy(targetsArg)
+  
+  if opt.gpu then
+    inputs:cuda()
+    targets:cuda()
+  end
+  
+  local err, outputs
+  feval = function(x)
+    
+    model_FCN:zeroGradParameters()
+    
+    predictions = model_FCN:forward(inputs)
+    err = criteria:forward(predictions, targets)
+    
+    local dLossdOuput = criteria:backward(predictions, targets)
+    model:backward(inputs, dLossdOuput)
+    return err, dLossdOuput
+  end
+
+  optim.sgd(feval, parameters, optimState)
+
 
   batchNumber = batchNumber + 1
   cutorch.synchronize(); collectgarbage();

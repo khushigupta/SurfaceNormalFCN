@@ -33,6 +33,7 @@ opt = lapp[[
   --weightDecay      (default 0.0005)        weight decay
   --classnum         (default 40)    
   --classification   (default 1)
+  --labelSize        (default 16)           
 ]]
 
 if opt.gpu < 0 or opt.gpu > 8 then opt.gpu = false end

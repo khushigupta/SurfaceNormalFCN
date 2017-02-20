@@ -12,27 +12,29 @@ if not ok then print('display not found. unable to plot') end
 
 
 local sanitize = require('sanitize')
-
+local fcn = require('fcn_train_cls.lua')
 
 ----------------------------------------------------------------------
 -- parse command-line options
 -- TODO: put your path for saving models in "save" 
 opt = lapp[[
-  -s,--save          (default "")      subdirectory to save logs
+  -s,--save          (default "")         subdirectory to save logs
   --saveFreq         (default 5)          save every saveFreq epochs
-  -n,--network       (default "")          reload pretrained network
+  -n,--network       (default "")         reload pretrained network
   -r,--learningRate  (default 0.001)      learning rate
   -b,--batchSize     (default 10)         batch size
-  -m,--momentum      (default 0.9)         momentum term of adam
-  -t,--threads       (default 2)           number of threads
+  -m,--momentum      (default 0.9)        momentum term of adam
+  -t,--threads       (default 2)          number of threads
   -g,--gpu           (default 0)          gpu to run on (default cpu)
-  --scale            (default 512)          scale of images to train on
-  --epochSize        (default 2000)        number of samples per epoch
+  --scale            (default 512)        scale of images to train on
+  --epochSize        (default 2000)       number of samples per epoch
   --forceDonkeys     (default 0)
-  --nDonkeys         (default 2)           number of data loading threads
-  --weightDecay      (default 0.0005)        weight decay
+  --nDonkeys         (default 2)          number of data loading threads
+  --weightDecay      (default 0.0005)     weight decay
   --classnum         (default 40)    
   --classification   (default 1)
+  --labelSize        (default 16) 
+  --alexNetPath      (default "")
 ]]
 
 if opt.gpu < 0 or opt.gpu > 8 then opt.gpu = false end
@@ -40,7 +42,7 @@ print(opt)
 
 opt.loadSize  = opt.scale 
 -- TODO: setup the output size 
--- opt.labelSize = ?
+-- opt.labelSize = ? -- defined above
 
 
 opt.manualSeed = torch.random(1,10000) 
@@ -78,10 +80,22 @@ end
 if opt.network == '' then
   ---------------------------------------------------------------------
   -- TODO: load pretrain model and add some layers, let's name it as model_FCN for the sake of simplicity
-  -- hint: you might need to add large padding in conv1 (perhaps around 100ish? )
+  -- hint: you might need to add large padding in conv1 (perhaps around 100ish?)
   -- hint2: use ReArrange instead of Reshape or View
   -- hint3: you might need to skip the dropout and softmax layer in the model
-
+  model_FCN = torch.load(opt.alexNetPath) -- path where AlexNet will be stored
+  
+  -- remove last few layers
+  model_FCN:remove(24) -- nn.Softmax
+  model_FCN:remove(23) -- nn.Linear (4096 -> 1000)
+  model_FCN:remove(22) -- nn.Dropout
+  model_FCN:remove(19) -- nn.Dropout
+  
+  -- add new layers
+  model_FCN:add(nn.SpatialReflectionPadding(100, 100, 100, 100), 1s) -- think about what this would be
+  model_FCN:add(nn.SpatialConvolution(4096, opt.classnum, 1, 1, 1, 1))
+  model_FCN:add(nn.ReArrange())
+  model_FCN:add(nn.LogSoftMax())
 else
   print('<trainer> reloading previously trained network: ' .. opt.network)
   tmp = torch.load(opt.network)
@@ -92,12 +106,18 @@ end
 print('fcn network:')
 print(model_FCN)
 
-
 -- TODO: loss function
+criteria = nn.ClassNLLCriterion()
+
 -- TODO: retrieve parameters and gradients
 -- TODO: setup dataset, use data.lua
--- TODO: setup training functions, use fcn_train_cls.lua
+-- TODO: setup training functions, use fcn_train_cls.lua (done)
 -- TODO: convert model and loss function to cuda
+
+if opt.gpu then
+  model_FCN:cuda()
+  criteria:cuda()
+end
 
 
 local optimState = {
@@ -124,7 +144,6 @@ local function train()
    end
    donkeys:synchronize()
    cutorch.synchronize()
-
 end
 
 epoch = 1
@@ -148,7 +167,6 @@ while true do
   -- plot errors
   if opt.plot  and epoch and epoch % 1 == 0 then
     torch.setdefaulttensortype('torch.FloatTensor')
-
     if opt.gpu then
       torch.setdefaulttensortype('torch.CudaTensor')
     else

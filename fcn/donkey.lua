@@ -76,13 +76,29 @@ function makeData_cls(img, label)
   -- TODO: the input label is a 3-channel real value image, quantize each pixel into classes (1 ~ 40)
   -- resize the label map from a matrix into a long vector
   -- hint: the label should be a vector with dimension of: opt.batchSize * opt.labelSize * opt.labelSize
-  return {img, label}
+  -- torch stores tensors in row major form
+  local batchSize, h, w = label:size()[1], label:size()[3], label:size()[4]
+  
+  label = label:index(2, torch.LongTensor{3, 2, 1}) -- permute RGB(ZYX) to BGR(XYZ). img = batchSize*3*h*w
+  label = torch.reshape(label, batchSize, 3, h*w)
+  local labelIdx = torch.Tensor(batchSize, h*w):zero()
+  
+  for i = 1, batchSize do 
+    labelInstance = label[i]                  -- size 3*(h*w)
+    local multRes = torch.Tensor(opt.classnum, h*w):zero()
+    multRes:addmm(codebook, labelInstance)    -- multiply 40*3 with 3*(h*w) and add to multRes
+    _, labelIdx[i] = torch.max(res, 1)        -- take the maximum across 40 rows, and return that idx
+  end
+  
+  return {img, labelIdx}
 end
 
 
 function makeData_cls_pre(img, label)
   -- TODO: almost same as makeData_cls, need to convert img from RGB to BGR for caffe pre-trained model
-   return {img, label}
+  img, label = makeData_cls(img, label)
+  img = img:index(2, torch.LongTensor{3, 2, 1}) -- permute RGB to BGR. img = batchSize*3*h*w
+  return {img, label}
 end
 
 
