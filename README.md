@@ -1,2 +1,2 @@
 # SurfaceNormalFCN
-Fully Convolutional Networks (FCN) in for Surface Normal Estimation
+Fully Convolutional Networks (FCN) for Surface Normal Estimation
